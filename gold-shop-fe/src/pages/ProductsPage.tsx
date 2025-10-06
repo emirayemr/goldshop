@@ -1,8 +1,8 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { fetchProducts } from "../api";
 import type { QueryParams } from "../api";
-import { useEffect, useMemo, useState } from "react";
-import { fmtUsd, parseNum } from "../lib/format";
+import { useEffect, useState } from "react";
+import { parseNum } from "../lib/format";
 import { useQueryState } from "../hooks/useQueryState";
 import ProductCard from "../components/ProductCard";
 import Empty from "../components/Empty";
