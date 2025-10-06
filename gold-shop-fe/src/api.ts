@@ -21,14 +21,14 @@ export type QueryParams = {
 export type PageResponse<T> = { items: T[]; total: number };
 
 /** -------- Axios client -------- */
-const BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, ""); // sondaki /'ları temizle
+const BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 
 if (!BASE) {
     console.warn("VITE_API_BASE is not set. Define it in .env and Vercel Environment Variables.");
 }
 
 export const api = axios.create({
-    baseURL: BASE,          // https://goldshop-production.up.railway.app
+    baseURL: "https://goldshop-production.up.railway.app",
     timeout: 8000,
 });
 
