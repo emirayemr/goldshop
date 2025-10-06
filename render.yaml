@@ -2,10 +2,10 @@ services:
   - type: web
     name: goldshop-api
     rootDir: .
-    runtime: java
     envVars:
       - key: JAVA_VERSION
         value: "17"
     buildCommand: ./mvnw clean package -DskipTests
     startCommand: java -jar target/*.jar
+    plan: free
     region: frankfurt
