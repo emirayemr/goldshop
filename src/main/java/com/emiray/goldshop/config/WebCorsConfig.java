@@ -12,9 +12,15 @@ public class WebCorsConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:5173", "http://localhost:3000")
-                        .allowedMethods("GET");
+                registry.addMapping("/**")
+                        // Prod FE domainin
+                        .allowedOrigins("https://gold-shop-bice.vercel.app")
+                        // Preview ve diğer vercel alt alan adları için joker
+                        .allowedOriginPatterns("https://*.vercel.app")
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedHeaders("*")
+                        .allowCredentials(false)
+                        .maxAge(3600);
             }
         };
     }
