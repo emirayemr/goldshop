@@ -1,23 +1,22 @@
-# Base image for Java 17
+# Use official lightweight Java 17 image
 FROM eclipse-temurin:17-jdk-alpine
 
-# Create app directory
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml
+# Copy Maven wrapper files and set executable permission
 COPY mvnw .
 COPY .mvn .mvn
-COPY pom.xml .
+RUN chmod +x mvnw
 
-# Download dependencies
+# Copy project files
+COPY pom.xml .
 RUN ./mvnw dependency:go-offline -B
 
-# Copy source
 COPY src src
 
-# Build the app
+# Build Spring Boot app
 RUN ./mvnw clean package -DskipTests
 
-# Run the app
+# Expose port and run
 EXPOSE 8080
 CMD ["java", "-jar", "target/*.jar"]
