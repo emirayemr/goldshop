@@ -16,7 +16,10 @@ public class ProductsController {
         this.service = service;
     }
 
-    // Ör: /api/products?minPrice=300&sortBy=price&dir=asc&page=0&size=6
+    /**
+     * Returns a paginated and optionally filtered list of products.
+     * Example: /api/products?minPrice=300&sortBy=price&dir=asc&page=0&size=6
+     */
     @GetMapping
     public PageResponse<ProductView> list(
             @RequestParam(required = false) @Min(0) Double minPrice,
@@ -30,6 +33,9 @@ public class ProductsController {
         return service.listAll(minPrice, maxPrice, minPopularity, sortBy, dir, page, size);
     }
 
+    /** Sorting options for product listing */
     public enum SortBy { price, popularity, name }
+
+    /** Sort direction (ascending or descending) */
     public enum Direction { asc, desc }
 }

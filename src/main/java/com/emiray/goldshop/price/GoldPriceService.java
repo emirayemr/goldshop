@@ -3,7 +3,6 @@ package com.emiray.goldshop.price;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -15,13 +14,15 @@ import java.util.Map;
 @Service
 public class GoldPriceService {
 
-    // ---- config ----
+    // ---- configuration ----
+    private static final double TROY_OZ_IN_GRAMS = 31.1034768;
+
     private final String provider;
     private final String apiKey;
     private final double fallback;
     private final RestClient http;
 
-    // ---- health telemetry ----
+    // ---- health telemetry (exposed to HealthIndicator) ----
     private volatile Instant lastSuccessAt;
     private volatile Double lastSuccessfulUsdPerGram;
     private volatile String lastErrorMessage;
@@ -37,20 +38,21 @@ public class GoldPriceService {
         this.apiKey = apiKey;
         this.fallback = fallback;
 
-        // RestClient.Builder'da connectTimeout/readTimeout yok.
-        // Timeout'ları request factory üzerinden veriyoruz.
-        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        // RestClient timeouts are configured via the underlying request factory
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         int t = (int) Math.min(timeoutMs, Integer.MAX_VALUE);
-        f.setConnectTimeout(t);
-        f.setReadTimeout(t);
+        factory.setConnectTimeout(t);
+        factory.setReadTimeout(t);
 
         this.http = builder
-                .requestFactory(f) // Supplier gerekmiyor; doğrudan factory verilebilir
+                .requestFactory(factory)
                 .build();
     }
 
     /**
-     * Gram başına USD fiyatı. API anahtarı yoksa ya da hata olursa fallback döner.
+     * Returns gold price in USD per gram.
+     * Falls back to a configured static price on error or missing API key.
+     * Result is cached (configure cache TTL in your CacheManager).
      */
     @Cacheable("goldPrice")
     public double getGoldPricePerGramUsd() {
@@ -62,10 +64,9 @@ public class GoldPriceService {
             } else if (p.equals("goldapi")) {
                 price = fetchFromGoldApi();
             } else {
-                price = fallback; // dummy
+                price = fallback; // dummy/local mode
             }
 
-            // başarı
             if (price > 0) recordSuccess(price);
             return price;
 
@@ -75,14 +76,15 @@ public class GoldPriceService {
         }
     }
 
-    // ---- Metals-API (opsiyonel) ----
+    // ---- Metals-API (optional) ----
     private double fetchFromMetalsApi() {
         if (apiKey == null || apiKey.isBlank()) {
             recordFailure("API key missing (MetalsAPI)");
             return fallback;
         }
 
-        MetalsDto dto = http.mutate().baseUrl("https://metals-api.com")
+        MetalsDto dto = http.mutate()
+                .baseUrl("https://metals-api.com")
                 .build()
                 .get()
                 .uri(uri -> uri.path("/api/latest")
@@ -97,20 +99,20 @@ public class GoldPriceService {
 
         if (dto == null || dto.getRates() == null || !dto.getRates().containsKey("XAU")) return fallback;
 
-        // base=USD olduğu için 1 / XAU → USD/oz
+        // base=USD -> 1 / rate(XAU) gives USD per troy ounce
         double usdPerOz = 1.0 / dto.getRates().get("XAU");
-        double usdPerGram = usdPerOz / 31.1034768;
-        return round2(usdPerGram);
+        return round2(usdPerOz / TROY_OZ_IN_GRAMS);
     }
 
-    // ---- GoldAPI (opsiyonel) ----
+    // ---- GoldAPI (optional) ----
     private double fetchFromGoldApi() {
         if (apiKey == null || apiKey.isBlank()) {
             recordFailure("API key missing (GoldAPI)");
             return fallback;
         }
 
-        GoldDto dto = http.mutate().baseUrl("https://www.goldapi.io")
+        GoldDto dto = http.mutate()
+                .baseUrl("https://www.goldapi.io")
                 .build()
                 .get()
                 .uri("/api/XAU/USD")
@@ -122,11 +124,11 @@ public class GoldPriceService {
 
         if (dto == null || dto.getPrice() <= 0) return fallback;
 
-        double usdPerGram = dto.getPrice() / 31.1034768; // GoldAPI: USD/oz
-        return round2(usdPerGram);
+        // GoldAPI returns USD per troy ounce
+        return round2(dto.getPrice() / TROY_OZ_IN_GRAMS);
     }
 
-    // ---- Health helpers ----
+    // ---- health helpers ----
     private void recordSuccess(double price) {
         this.lastSuccessfulUsdPerGram = price;
         this.lastSuccessAt = Instant.now();
@@ -135,19 +137,20 @@ public class GoldPriceService {
 
     private void recordFailure(String msg) {
         this.lastErrorMessage = msg;
-        // lastSuccessAt / lastSuccessfulUsdPerGram korunur
+        // keep lastSuccessAt / lastSuccessfulUsdPerGram unchanged
     }
 
     public Instant getLastSuccessAt() { return lastSuccessAt; }
     public Double getLastSuccessfulUsdPerGram() { return lastSuccessfulUsdPerGram; }
     public String getLastErrorMessage() { return lastErrorMessage; }
 
+    /** Returns true if the last successful fetch is within the given max age. */
     public boolean isFresh(Duration maxAge) {
         Instant last = this.lastSuccessAt;
         return last != null && Duration.between(last, Instant.now()).compareTo(maxAge) <= 0;
     }
 
-    // ---- DTO'lar (POJO) ----
+    // ---- DTOs ----
     private static class MetalsDto {
         private Map<String, Double> rates;
         public Map<String, Double> getRates() { return rates; }

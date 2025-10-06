@@ -19,17 +19,18 @@ public class GoldPriceHealth implements HealthIndicator {
     @Override
     public Health health() {
         Instant last = svc.getLastSuccessAt();
-        Double  price = svc.getLastSuccessfulUsdPerGram();
-        String  err = svc.getLastErrorMessage();
+        Double price = svc.getLastSuccessfulUsdPerGram();
+        String error = svc.getLastErrorMessage();
 
-        // Son 30 dakika içinde başarılı fetch olduysa UP; değilse DEGRADE
-        boolean fresh = svc.isFresh(Duration.ofMinutes(30));
+        // Consider service healthy if last successful fetch was within the last 30 minutes
+        boolean isFresh = svc.isFresh(Duration.ofMinutes(30));
 
-        Health.Builder h = fresh ? Health.up() : Health.status("DEGRADED");
-        return h
+        Health.Builder status = isFresh ? Health.up() : Health.status("DEGRADED");
+
+        return status
                 .withDetail("lastSuccessAt", last)
                 .withDetail("lastUsdPerGram", price)
-                .withDetail("lastError", err)
+                .withDetail("lastError", error)
                 .build();
     }
 }
